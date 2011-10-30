@@ -1,16 +1,22 @@
 var Watcher = function() {
 				
 	var socket = io.connect('http://localhost:3333');
+	var initialized = false;
+
 	socket.emit('identify', { role: 'WATCHER' });
+	socket.emit('request-history', { startTime: 0 });
 
-	socket.on('new-connection', function(data) {
-			console.log('new-connection event fired. data = ' + data);
-	});
+	socket.on('history', init);
+	socket.on('new-action', onAction);
 
-	//socket.emit('message', { data: 'hi cloud server!' });
+	function init(data) {
+		if(initialized) return;
+		initialized = true;
+		console.log('Received history: ' + data.result.length);
+	}
 
-	this.sendCode = function(code) {
-		socket.emit('message', { code: code});
+	function onAction(data) {
+		console.log('a user just ' + data.code);
 	}
 }
 

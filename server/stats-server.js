@@ -1,8 +1,10 @@
 
 // Modules
-var io 			= require('socket.io'),
-		util 		= require('util'),
-		uuid		=	require('node-uuid');
+var io 				= require('socket.io'),
+		util 			= require('util'),
+		uuid			=	require('node-uuid'),
+		mongoose	=	require('mongoose'),
+		models		=	require('./models');
 
 // Privates 
 var defaultPort 	= 3333,
@@ -22,6 +24,9 @@ init();
  * Start the socket.io server
  */
 function init() {
+	// connect to database
+	mongoose.connect('mongodb://localhost/msu');
+
 	log('Starting server on port ' + port);
 	io = io.listen(port);
 
@@ -31,6 +36,7 @@ function init() {
 		socket.on('disconnect', socketFn(socket, removeClient));
 		socket.on('reporter-action', socketFn(socket, logAction));
 		socket.on('request-uuid', socketFn(socket, provideUuid));
+		socket.on('request-history', socketFn(socket, sendHistory));
 	});
 }
 
@@ -42,6 +48,24 @@ function socketFn(socket, fn) {
 	};
 }
 
+// Send action history, where time is greater than data.startTime
+function sendHistory(socket, data) {
+	var startTime = parseInt(data.startTime) || 0;
+	var result = { length: 0 };
+	models.Action.find({ timestamp: {$gte:startTime} }, function(err, docs) {
+		docs.forEach(function(doc) {
+			if(!result[doc.loadGuid]) {
+				result[doc.loadGuid] = [];
+				result.length++;
+			}
+
+			result[doc.loadGuid].push(doc);
+		});
+
+		socket.emit('history', { result: result });
+	});
+}
+
 // Provide a UUID to a socket
 function provideUuid(socket, data) {
 	socket.emit('uuid', uuid());
@@ -50,9 +74,19 @@ function provideUuid(socket, data) {
 // Log an action from a reporter
 function logAction(socket, data) {
 	var code = data.code;
+	var payload = (typeof data.payload === 'object') ? data.payload : {};
+	var action = new models.Action();
 
 	if(code) {
 		log('Received code: ' + code + ' from reporter');
+		action.code = code;
+		action.payload = payload;
+		action.markModified( 'payload' );
+		
+		io.sockets.emit('new-action', action);
+		action.save(function(error) {
+			if(!error) log('Saved new entry in database');
+		});
 	}
 }
 

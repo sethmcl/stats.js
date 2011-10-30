@@ -6,7 +6,7 @@ var Reporter = function() {
 	var socket = io.connect('http://localhost:3333');
 	socket.emit('identify', { role: 'REPORTER' });
 	socket.emit('request-uuid');
-
+	
 	// Listen
 	socket.on('uuid', init);
 
