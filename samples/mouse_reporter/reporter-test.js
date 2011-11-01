@@ -6,6 +6,10 @@ $(document).ready(function() {
 		$('#sign-out').click(clickSignOut);
 
 		reporter = new Reporter();
+
+		window.addEventListener('mousemove', function(e) {
+			reporter.send('mouse-move', { x: e.x, y: e.y });
+		});
 });
 
 function clickJoin() {

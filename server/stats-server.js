@@ -16,7 +16,9 @@ var defaultPort 	= 3333,
 
 		errorCodes 		= {
 			alreadyIdentified: 1000
-		};
+		},
+
+    clients       = {};
 
 init();
 
@@ -31,12 +33,12 @@ function init() {
 	io = io.listen(port);
 
 	io.sockets.on('connection', function(socket) {
-		// GLOBAL: io.sockets.emit('new-connection', 'user connected');
+    // GLOBAL: io.sockets.emit('new-connection', 'user connected');
 		socket.on('identify', socketFn(socket, identifyClient)); 
 		socket.on('disconnect', socketFn(socket, removeClient));
 		socket.on('reporter-action', socketFn(socket, logAction));
 		socket.on('request-uuid', socketFn(socket, provideUuid));
-		socket.on('request-history', socketFn(socket, sendHistory));
+		socket.on('request-history', socketFn(socket, sendHistory));    
 	});
 }
 
@@ -82,9 +84,15 @@ function logAction(socket, data) {
 		action.code = code;
 		action.payload = payload;
 		action.markModified( 'payload' );
+		action.reporter = socket.id;
 		
-		io.sockets.emit('new-action', action);
-		action.save(function(error) {
+    io.sockets.emit('reporter-action', {
+      code: code,
+      payload: payload,
+      reporter: socket.id
+    });
+		
+    action.save(function(error) {
 			if(!error) log('Saved new entry in database');
 		});
 	}
@@ -102,6 +110,7 @@ function identifyClient(socket, data) {
 	if(data.role === reporterCode) {
 		reporters.push(socket);
 		log('Reporter identified.', 10);
+    io.sockets.emit('reporter-connected', { reporter: socket.id });
 	} else if(data.role === watcherCode) {
 		watchers.push(socket);
 		log('Watcher identified', 10);
@@ -121,6 +130,7 @@ function removeClient(socket) {
 	if((index = reporters.indexOf(socket)) !== -1) {
 		reporters.splice(index, 1);
 		log('Reporter disconnected', 10);
+    io.sockets.emit('reporter-disconnected', { reporter: socket.id });
 	} else if((index = watchers.indexOf(socket)) !== -1) {
 		watchers.splice(index, 1);
 		log('Watcher disconnected', 10);
